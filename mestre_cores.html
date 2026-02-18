@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Mestre das Cores</title>
+    <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+    <script
+        src="https://unpkg.com/aframe-environment-component@1.3.4/dist/aframe-environment-component.min.js"></script>
+</head>
+
+<body>
+    <script>
+        let coresSelecionadas = [];
+        let pontuacao = 0;
+        let jogoAtivo = false;
+        let desafioAtual = null;
+
+        const desafios = [
+            { nome: "VERDE", cor: "green", necessaria: ["azul", "amarelo"] },
+            { nome: "ROXO", cor: "purple", necessaria: ["vermelho", "azul"] },
+            { nome: "LARANJA", cor: "orange", necessaria: ["vermelho", "amarelo"] }
+        ];
+
+        const misturadorDeCores = {
+            "amarelo,azul": "green",
+            "azul,vermelho": "purple",
+            "amarelo,vermelho": "orange"
+        };
+
+        const mapaCores = { vermelho: "red", azul: "blue", amarelo: "yellow" };
+        const posicoesIniciais = { vermelho: "-1.5 1.2 -3", azul: "-1.5 0.7 -3", amarelo: "-1.5 0.2 -3" };
+
+        function tocarSom(idSom) {
+            const audio = document.querySelector(idSom);
+            if (audio) {
+                audio.currentTime = 0;
+                audio.play().catch(e => console.log('Erro ao tocar som:', e));
+            }
+        }
+
+        window.addEventListener("load", () => {
+            const sceneEl = document.querySelector("a-scene");
+            const cursorEl = document.querySelector("#cursorPrincipal");
+            sceneEl.addEventListener("enter-vr", () => {
+                cursorEl.setAttribute("visible", "false");
+                cursorEl.setAttribute("raycaster", "enabled: false");
+            });
+            sceneEl.addEventListener("exit-vr", () => {
+                cursorEl.setAttribute("visible", "true");
+                cursorEl.setAttribute("raycaster", "enabled: true");
+            });
+            setTimeout(iniciarJogo, 1000);
+        });
+
+        function vibrarControles(intensidade, duracao) {
+            const controles = document.querySelectorAll('[laser-controls]');
+            controles.forEach(controle => {
+                const gamePad = controle.components['tracked-controls']?.controller;
+                if (gamePad?.hapticActuators?.length > 0) {
+                    gamePad.hapticActuators[0].pulse(intensidade, duracao);
+                }
+            });
+        }
+
+        function dispararBolhas(cor) {
+            const container = document.querySelector("#containerBolhas");
+            container.innerHTML = "";
+
+            for (let i = 0; i < 20; i++) {
+                const bolha = document.createElement("a-sphere");
+                const x = (Math.random() - 0.5) * 0.8;
+                const z = (Math.random() - 0.5) * 0.8;
+                const delay = Math.random() * 500;
+                const tamanho = Math.random() * 0.08 + 0.02;
+
+                bolha.setAttribute("radius", tamanho);
+                bolha.setAttribute("color", cor);
+                bolha.setAttribute("position", `${x} 0.5 ${z}`);
+                bolha.setAttribute("material", "opacity: 0.7; transparent: true; emissive: " + cor);
+
+                bolha.setAttribute("animation", {
+                    property: "position",
+                    to: `${x} 2.5 ${z}`,
+                    dur: 1500,
+                    easing: "easeOutCubic",
+                    delay: delay
+                });
+                bolha.setAttribute("animation__fade", {
+                    property: "scale",
+                    to: "0 0 0",
+                    dur: 1500,
+                    easing: "easeOutCubic",
+                    delay: delay
+                });
+
+                container.appendChild(bolha);
+            }
+        }
+
+        function iniciarJogo() {
+            jogoAtivo = true;
+            document.querySelector("#interfaceJogo").setAttribute("visible", "true");
+            iniciarNovoRound();
+        }
+
+        function iniciarNovoRound() {
+            desafioAtual = desafios[Math.floor(Math.random() * desafios.length)];
+            document.querySelector("#textoDesafio").setAttribute("value", "MISSAO: " + desafioAtual.nome);
+            resetarMistura();
+        }
+
+        function resetarMistura() {
+            coresSelecionadas = [];
+            ["#orbe1", "#orbe2", "#orbeResultado", "#metade1", "#metade2", "#painelFormula"]
+                .forEach(id => {
+                    const el = document.querySelector(id);
+                    if (el) el.setAttribute("visible", "false");
+                });
+
+            document.querySelector("#liquidoPocao").setAttribute("color", "white");
+            document.querySelector("#textoInstrucao").setAttribute("value", "Escolha 2 cores!");
+            document.querySelector("#containerBolhas").innerHTML = "";
+            document.querySelector("#caldeirao").setAttribute("rotation", "0 0 0");
+
+            ["vermelho", "azul", "amarelo"].forEach(cor => {
+                const cubo = document.querySelector(`#cubo${cor.charAt(0).toUpperCase() + cor.slice(1)}`);
+                if (cubo) {
+                    cubo.setAttribute("visible", "true");
+                    cubo.setAttribute("position", posicoesIniciais[cor]);
+                }
+            });
+        }
+
+        function atualizarVisual() {
+            const m1 = document.querySelector("#metade1");
+            const m2 = document.querySelector("#metade2");
+            const painelFormula = document.querySelector("#painelFormula");
+            const o1 = document.querySelector("#orbe1");
+            const o2 = document.querySelector("#orbe2");
+            const oRes = document.querySelector("#orbeResultado");
+
+            painelFormula.setAttribute("visible", "true");
+
+            if (coresSelecionadas[0]) {
+                const corHex1 = mapaCores[coresSelecionadas[0]];
+                m1.setAttribute("visible", "true");
+                m1.querySelector("a-circle").setAttribute("color", corHex1);
+                o1.setAttribute("visible", "true");
+                o1.setAttribute("color", corHex1);
+                o1.setAttribute("material", `emissive: ${corHex1}; emissiveIntensity: 0.5`);
+            }
+
+            if (coresSelecionadas[1]) {
+                const corHex2 = mapaCores[coresSelecionadas[1]];
+                m2.setAttribute("visible", "true");
+                m2.querySelector("a-circle").setAttribute("color", corHex2);
+                o2.setAttribute("visible", "true");
+                o2.setAttribute("color", corHex2);
+                o2.setAttribute("material", `emissive: ${corHex2}; emissiveIntensity: 0.5`);
+
+                const chave = coresSelecionadas.sort().join(",");
+                const corResultado = misturadorDeCores[chave] || "gray";
+                oRes.setAttribute("visible", "true");
+                oRes.setAttribute("color", corResultado);
+                oRes.setAttribute("material", `emissive: ${corResultado}; emissiveIntensity: 0.8`);
+
+                document.querySelector("#textoInstrucao").setAttribute("value", "Pronto! MISTURAR!");
+            }
+        }
+
+        AFRAME.registerComponent("cor-arrastavel", {
+            schema: { corNome: { type: "string" } },
+            init() {
+                this.el.addEventListener("click", () => {
+                    if (coresSelecionadas.length < 2 && !coresSelecionadas.includes(this.data.corNome)) {
+                        coresSelecionadas.push(this.data.corNome);
+                        this.el.setAttribute("visible", "false");
+                        tocarSom('#som-selecao');
+                        vibrarControles(0.2, 40);
+                        atualizarVisual();
+                    }
+                });
+            }
+        });
+
+        AFRAME.registerComponent("acao-verificar", {
+            init() {
+                this.el.addEventListener("click", () => {
+                    tocarSom('#som-clique');
+                    if (!jogoAtivo || coresSelecionadas.length < 2) return;
+
+                    const chave = coresSelecionadas.sort().join(",");
+                    const esperado = [...desafioAtual.necessaria].sort().join(",");
+                    const corGeradaReal = misturadorDeCores[chave] || "gray";
+
+                    document.querySelector("#liquidoPocao").setAttribute("color", corGeradaReal);
+                    document.querySelector("#metade1").querySelector("a-circle").setAttribute("color", corGeradaReal);
+                    document.querySelector("#metade2").querySelector("a-circle").setAttribute("color", corGeradaReal);
+
+                    if (chave === esperado) {
+                        pontuacao += 10;
+                        document.querySelector("#textoPontos").setAttribute("value", "SCORE: " + pontuacao);
+                        document.querySelector("#textoInstrucao").setAttribute("value", "MAGNIFICO!");
+                        tocarSom('#som-acerto');
+                        dispararBolhas(desafioAtual.cor);
+                        vibrarControles(0.7, 250);
+                        setTimeout(iniciarNovoRound, 2000);
+                    } else {
+                        document.querySelector("#textoInstrucao").setAttribute("value", "ERROU!");
+                        tocarSom('#som-erro');
+                        const caldeirao = document.querySelector("#caldeirao");
+                        caldeirao.emit("erro-shake");
+                        setTimeout(() => {
+                            caldeirao.setAttribute("rotation", "0 0 0");
+                        }, 350);
+                        vibrarControles(0.9, 100);
+                        setTimeout(resetarMistura, 1500);
+                    }
+                });
+            }
+        });
+
+        AFRAME.registerComponent("voltar-menu", {
+            init() {
+                const el = this.el;
+                el.addEventListener('raycaster-intersected', () => {
+                    el.setAttribute('material', 'emissive: white; emissiveIntensity: 0.3');
+                });
+                el.addEventListener('raycaster-intersected-cleared', () => {
+                    el.removeAttribute('material');
+                    el.setAttribute('color', '#c0392b');
+                });
+                el.addEventListener("click", () => {
+                    window.location.href = "index.html";
+                });
+            }
+        });
+    </script>
+
+    <a-scene>
+        <a-assets>
+            <audio id="som-selecao" src="som_selecao.wav" preload="auto"></audio>
+            <audio id="som-acerto" src="som_acerto.wav" preload="auto"></audio>
+            <audio id="som-erro" src="som_erro.ogg" preload="auto"></audio>
+            <audio id="som-clique" src="som_clique.wav" preload="auto"></audio>
+        </a-assets>
+
+        <a-entity environment="preset: forest; lighting: none"></a-entity>
+        <a-light type="ambient" color="#BBB" intensity="0.8"></a-light>
+        <a-light type="directional" color="#FFF" intensity="0.6" position="-1 4 2"></a-light>
+
+        <a-entity id="rig">
+            <a-camera position="0 1.6 0">
+                <a-cursor id="cursorPrincipal" raycaster="objects: .clickable"
+                    material="color: white; shader: flat"></a-cursor>
+            </a-camera>
+            <a-entity laser-controls="hand: left" raycaster="objects: .clickable; far: 10"></a-entity>
+            <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 10"></a-entity>
+        </a-entity>
+
+        <a-entity id="interfaceJogo" visible="false">
+            <a-box position="0 3.5 -3.1" width="6.5" height="1.2" depth="0.1" color="#111" opacity="0.9"></a-box>
+            <a-text id="textoTitulo" value="MESTRE DAS CORES" position="0 3.9 -3" align="center" width="7"
+                color="#FFD700"></a-text>
+            <a-text id="textoDesafio" value="" position="0 3.5 -3" align="center" width="6" color="white"></a-text>
+            <a-text id="textoInstrucao" value="" position="0 3.2 -3" align="center" width="5"></a-text>
+            <a-text id="textoPontos" value="SCORE: 0" position="2.5 3.5 -3" align="center" width="4"
+                color="#00FF00"></a-text>
+
+            <a-box class="clickable" voltar-menu color="#c0392b" position="-2.5 3.5 -3" width="1.2" height="0.35"
+                depth="0.1">
+                <a-text value="MENU" align="center" position="0 0 0.06" width="3.5" color="white"></a-text>
+            </a-box>
+
+            <a-entity id="painelFormula" position="0 1.8 -3" visible="false">
+                <a-sphere id="orbe1" radius="0.15" position="-0.6 0 0" material="emissiveIntensity: 0.5"></a-sphere>
+                <a-text value="+" position="-0.3 0 0" align="center" width="4" color="white"></a-text>
+                <a-sphere id="orbe2" radius="0.15" position="0 0 0" material="emissiveIntensity: 0.5"></a-sphere>
+                <a-text value="=" position="0.3 0 0" align="center" width="4" color="white"></a-text>
+                <a-sphere id="orbeResultado" radius="0.22" position="0.7 0 0"
+                    animation="property: position; to: 0.7 0.1 0; dur: 1000; dir: alternate; loop: true; easing: easeInOutSine">
+                </a-sphere>
+            </a-entity>
+
+            <a-entity position="0 0.5 -3">
+                <a-cylinder id="caldeirao" radius="0.6" height="0.8" color="#2c3e50"
+                    animation__shake="property: rotation; from: 0 0 -5; to: 0 0 5; startEvents: erro-shake; dur: 100; dir: alternate; loop: 3">
+                    <a-circle id="liquidoPocao" position="0 0.41 0" rotation="-90 0 0" radius="0.55"
+                        color="white"></a-circle>
+                    <a-entity id="metade1" visible="false" position="0 0.42 0" rotation="-90 0 0">
+                        <a-circle radius="0.55" theta-start="90" theta-length="180"></a-circle>
+                    </a-entity>
+                    <a-entity id="metade2" visible="false" position="0 0.43 0" rotation="-90 0 0">
+                        <a-circle radius="0.55" theta-start="270" theta-length="180"></a-circle>
+                    </a-entity>
+                    <a-entity id="containerBolhas"></a-entity>
+                </a-cylinder>
+            </a-entity>
+
+            <a-box id="cuboVermelho" class="clickable" cor-arrastavel="corNome: vermelho" color="red"
+                position="-1.5 1.2 -3" scale="0.3 0.3 0.3"></a-box>
+            <a-box id="cuboAzul" class="clickable" cor-arrastavel="corNome: azul" color="blue" position="-1.5 0.7 -3"
+                scale="0.3 0.3 0.3"></a-box>
+            <a-box id="cuboAmarelo" class="clickable" cor-arrastavel="corNome: amarelo" color="yellow"
+                position="-1.5 0.2 -3" scale="0.3 0.3 0.3"></a-box>
+
+            <a-box class="clickable" acao-verificar color="#27ae60" position="1.2 0.7 -3" width="1" height="0.35"
+                depth="0.15">
+                <a-text value="MISTURAR" align="center" position="0 0 0.08" width="3.5"></a-text>
+            </a-box>
+        </a-entity>
+    </a-scene>
+</body>
+
+</html>
