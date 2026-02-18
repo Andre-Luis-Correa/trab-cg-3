@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>VR Game Hub</title>
+    <title>Menu</title>
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-environment-component@1.3.4/dist/aframe-environment-component.min.js"></script>
 </head>
@@ -56,22 +56,20 @@
             <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 10"></a-entity>
         </a-entity>
 
-        <a-box position="0 3.6 -4" width="7" height="1.4" depth="0.1" color="#111" opacity="0.9"></a-box>
-        <a-text value="VR GAME HUB" position="0 3.8 -3.94" align="center" width="8" color="#FFD700"></a-text>
-        <a-text value="Escolha um jogo para comecar" position="0 3.4 -3.94" align="center" width="6" color="#ccc"></a-text>
+        <a-box position="0 4.1 -4" width="7" height="1.4" depth="0.1" color="#111" opacity="0.9"></a-box>
+        <a-text value="Menu" position="0 4.3 -3.94" align="center" width="8" color="#FFD700"></a-text>
+        <a-text value="Escolha um jogo para comecar" position="0 3.9 -3.94" align="center" width="6" color="#ccc"></a-text>
 
-        <a-entity position="-1.8 1.5 -4">
-            <a-box width="2.8" height="3.0" depth="0.12" color="#1a1a2e" opacity="0.95"></a-box>
+        <a-entity position="-1.8 1.2 -4">
+            <a-box width="2.8" height="4.0" depth="0.12" color="#1a1a2e" opacity="0.95"></a-box>
 
-            <a-sphere radius="0.35" position="0 0.6 0.1" color="#9b59b6"
-                      animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
-            </a-sphere>
-            <a-sphere radius="0.2" position="0.3 0.65 0.15" color="#e74c3c"></a-sphere>
-            <a-sphere radius="0.2" position="-0.3 0.65 0.15" color="#f1c40f"></a-sphere>
+            <a-sphere radius="0.2" position="0 1.5 0.1" color="#1c52bd"></a-sphere>
+            <a-sphere radius="0.2" position="0.3 1.35 0.15" color="#fad502"></a-sphere>
+            <a-sphere radius="0.2" position="-0.3 1.25 0.15" color="#fa1302"></a-sphere>
 
-            <a-text value="MESTRE DAS CORES" position="0 0.05 0.07" align="center" width="5" color="#FFD700"></a-text>
+            <a-text value="MESTRE DAS CORES" position="0 0.7 0.07" align="center" width="5" color="#FFD700"></a-text>
             <a-text value="Misture cores primárias\npara criar novas cores!\nUse o laser para clicar." 
-                    position="0 -0.35 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
+                    position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
 
             <a-box class="clickable"
                    menu-jogo="url: mestre_cores.html; label: Mestre das Cores"
@@ -82,18 +80,18 @@
             </a-box>
         </a-entity>
 
-        <a-entity position="1.8 2.2 -4">
-            <a-box width="2.8" height="2.2" depth="0.12" color="#0d2137" opacity="0.95"></a-box>
+        <a-entity position="1.8 1.2 -4">
+            <a-box width="2.8" height="4.0" depth="0.12" color="#0d2137" opacity="0.95"></a-box>
 
-            <a-box position="-0.3 0.65 0.15" width="0.35" height="0.35" depth="0.35" color="#e67e22"
+            <a-box position="-0.3 1.35 0.15" width="0.35" height="0.35" depth="0.35" color="#e67e22"
                    animation="property: rotation; to: 45 360 45; loop: true; dur: 3000; easing: linear">
             </a-box>
-            <a-sphere radius="0.2" position="0.1 0.6 0.18" color="#9b59b6"></a-sphere>
-            <a-cone radius-bottom="0.2" height="0.35" position="0.45 0.6 0.15" color="#2ecc71"></a-cone>
+            <a-sphere radius="0.2" position="0.1 1.35 0.18" color="#9b59b6"></a-sphere>
+            <a-cone radius-bottom="0.2" height="0.35" position="0.45 1.35 0.15" color="#2ecc71"></a-cone>
 
-            <a-text value="GEOMETRIA VR" position="0 0.05 0.07" align="center" width="5" color="#00cfff"></a-text>
+            <a-text value="GEOMETRIA VR" position="0 0.7 0.07" align="center" width="5" color="#00cfff"></a-text>
             <a-text value="Agarre as formas com\no laser e coloque-as\ndentro do balde!" 
-                    position="0 -0.35 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
+                    position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
 
             <a-box class="clickable"
                    menu-jogo="url: geometria_vr.html; label: Geometria VR"
