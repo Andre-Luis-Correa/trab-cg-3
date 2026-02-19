@@ -1,8 +1,8 @@
 # Aprendizado Imersivo
 
-**Desenvolvedores:** André Luis Correa Cano e Bruna Carolina da Silva Feyh
-**Instituição:** Universidade Estadual do Oeste do Paraná - Unioeste - Campus Foz do Iguaçu
-**Curso:** Ciência da Computação
+### **Desenvolvedores:** André Luis Correa Cano e Bruna Carolina da Silva Feyh
+### **Instituição:** Universidade Estadual do Oeste do Paraná - Unioeste - Campus Foz do Iguaçu
+### **Curso:** Ciência da Computação
 
 O trabalho propõe o uso de Realidade Virtual, com o framework **A-Frame**, para transformar o ensino de conceitos básicos em uma experiência interativa e prática. O projeto permite que estudantes explorem ambientes 3D e interajam com objetos para consolidar o conhecimento em áreas como artes e matemática.
 
