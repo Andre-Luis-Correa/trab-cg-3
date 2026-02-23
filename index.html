@@ -2,17 +2,53 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Menu</title>
+    <title>Hub de Jogos VR</title>
     <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-environment-component@1.3.4/dist/aframe-environment-component.min.js"></script>
 </head>
 <body>
     <script>
+        // ==========================================
+        // SISTEMA DE NAVEGAÇÃO E UTILIDADES GERAIS
+        // ==========================================
+        function alternarTela(telaAtiva) {
+            // Remove a classe 'tela-ativa' e esconde todas, depois ativa só a certa
+            ['menu', 'geometria', 'cores'].forEach(tela => {
+                const el = document.querySelector('#tela-' + tela);
+                if (tela === telaAtiva) {
+                    el.setAttribute('visible', 'true');
+                    el.classList.add('tela-ativa');
+                } else {
+                    el.setAttribute('visible', 'false');
+                    el.classList.remove('tela-ativa');
+                }
+            });
+
+            if (telaAtiva === 'geometria') iniciarGeometria();
+            if (telaAtiva === 'cores') iniciarCores();
+        }
+
+        function tocarSom(id) {
+            const a = document.querySelector(id);
+            if (a) {
+                a.currentTime = 0;
+                a.play().catch(() => { });
+            }
+        }
+
+        function vibrar(intensidade, duracao) {
+            document.querySelectorAll('[laser-controls]').forEach(c => {
+                const gp = c.components['tracked-controls']?.controller;
+                if (gp?.hapticActuators?.length > 0) {
+                    gp.hapticActuators[0].pulse(intensidade, duracao);
+                }
+            });
+        }
+
         AFRAME.registerComponent('menu-jogo', {
-            schema: { url: { type: 'string' }, label: { type: 'string' } },
+            schema: { alvo: { type: 'string' } },
             init() {
                 const el = this.el;
-
                 el.addEventListener('raycaster-intersected', () => {
                     el.setAttribute('scale', '1.1 1.1 1.1');
                     el.setAttribute('material', 'emissive: white; emissiveIntensity: 0.25');
@@ -22,16 +58,31 @@
                     el.removeAttribute('material');
                     el.setAttribute('color', el.getAttribute('color'));
                 });
-
                 el.addEventListener('click', () => {
-                    window.location.href = this.data.url;
+                    alternarTela(this.data.alvo);
+                });
+            }
+        });
+
+        AFRAME.registerComponent('voltar-menu', {
+            init() {
+                const el = this.el;
+                el.addEventListener('raycaster-intersected', () => {
+                    el.setAttribute('material', 'emissive: white; emissiveIntensity: 0.3');
+                });
+                el.addEventListener('raycaster-intersected-cleared', () => {
+                    el.removeAttribute('material');
+                    el.setAttribute('color', '#c0392b');
+                });
+                el.addEventListener('click', () => {
+                    alternarTela('menu');
                 });
             }
         });
 
         window.addEventListener('load', () => {
             const sceneEl = document.querySelector('a-scene');
-            const cursorEl = document.querySelector('#cursor');
+            const cursorEl = document.querySelector('#cursorPrincipal');
             sceneEl.addEventListener('enter-vr', () => {
                 cursorEl.setAttribute('visible', 'false');
                 cursorEl.setAttribute('raycaster', 'enabled: false');
@@ -40,73 +91,403 @@
                 cursorEl.setAttribute('visible', 'true');
                 cursorEl.setAttribute('raycaster', 'enabled: true');
             });
+            
+            // Inicia na tela de menu
+            alternarTela('menu');
+        });
+
+        // ==========================================
+        // LÓGICA: MESTRE DA GEOMETRIA
+        // ==========================================
+        let geoPontuacao = 0;
+        let geoDesafioAtual = null;
+
+        const geoDesafios = [
+            { pergunta: "O QUE PARECE UM(A) SORVETE?", resposta: "cone", imagem: "#imgSorvete" },
+            { pergunta: "O QUE PARECE UMA BOLA?", resposta: "esfera", imagem: "#imgBola" },
+            { pergunta: "O QUE PARECE UM DADO?", resposta: "cubo", imagem: "#imgDado" }
+        ];
+
+        function atualizarPlacarGeo() {
+            document.querySelector('#textoPontosGeo').setAttribute('value', 'SCORE: ' + geoPontuacao);
+        }
+
+        function mostrarFeedbackGeo(msg, cor) {
+            const txt = document.querySelector('#textoFeedbackGeo');
+            txt.setAttribute('value', msg);
+            txt.setAttribute('color', cor || 'white');
+            clearTimeout(window._feedbackTimerGeo);
+            window._feedbackTimerGeo = setTimeout(() => txt.setAttribute('value', ''), 2000);
+        }
+
+        function iniciarNovoDesafioGeo() {
+            let novo;
+            do {
+                novo = geoDesafios[Math.floor(Math.random() * geoDesafios.length)];
+            } while (geoDesafioAtual && novo.pergunta === geoDesafioAtual.pergunta);
+
+            geoDesafioAtual = novo;
+            document.querySelector("#textoPerguntaGeo").setAttribute("value", geoDesafioAtual.pergunta);
+            document.querySelector("#imagemPerguntaGeo").setAttribute("material", "src", geoDesafioAtual.imagem);
+        }
+
+        function iniciarGeometria() {
+            geoPontuacao = 0;
+            atualizarPlacarGeo();
+            iniciarNovoDesafioGeo();
+        }
+
+        AFRAME.registerComponent("quiz-click", {
+            schema: { tipo: { type: "string" } },
+            init() {
+                this.el.addEventListener("click", () => {
+                    // Prevenção extra: se a tela não estiver visível, ignora o clique
+                    if (!geoDesafioAtual || document.querySelector('#tela-geometria').getAttribute('visible') === 'false') return;
+
+                    if (this.data.tipo === geoDesafioAtual.resposta) {
+                        geoPontuacao += 10;
+                        atualizarPlacarGeo();
+                        tocarSom("#som-acerto");
+                        vibrar(0.9, 180);
+                        mostrarFeedbackGeo("ACERTOU! +10", "#00FF00");
+
+                        this.el.setAttribute("animation__acerto", {
+                            property: "scale", to: "0.35 0.35 0.35", dur: 250,
+                            easing: "easeOutQuad", dir: "alternate", loop: 2
+                        });
+
+                        setTimeout(() => { iniciarNovoDesafioGeo(); }, 700);
+                    } else {
+                        tocarSom("#som-erro");
+                        vibrar(0.5, 120);
+                        mostrarFeedbackGeo("ERRADO!", "#ff4444");
+
+                        this.el.setAttribute("animation__erro", {
+                            property: "rotation", to: "0 20 0", dur: 100,
+                            dir: "alternate", loop: 4
+                        });
+                    }
+                });
+            }
+        });
+
+        // ==========================================
+        // LÓGICA: MESTRE DAS CORES
+        // ==========================================
+        let coresSelecionadas = [];
+        let coresPontuacao = 0;
+        let coresJogoAtivo = false;
+        let coresDesafioAtual = null;
+
+        const coresDesafios = [
+            { nome: "VERDE", cor: "green", necessaria: ["azul", "amarelo"] },
+            { nome: "ROXO", cor: "purple", necessaria: ["vermelho", "azul"] },
+            { nome: "LARANJA", cor: "orange", necessaria: ["vermelho", "amarelo"] }
+        ];
+
+        const misturadorDeCores = {
+            "amarelo,azul": "green", "azul,vermelho": "purple", "amarelo,vermelho": "orange"
+        };
+        const mapaCores = { vermelho: "red", azul: "blue", amarelo: "yellow" };
+        const posicoesIniciais = { vermelho: "-1.5 1.2 -3", azul: "-1.5 0.7 -3", amarelo: "-1.5 0.2 -3" };
+
+        function iniciarCores() {
+            coresPontuacao = 0;
+            coresJogoAtivo = true;
+            document.querySelector("#textoPontosCores").setAttribute("value", "SCORE: " + coresPontuacao);
+            iniciarNovoRoundCores();
+        }
+
+        function iniciarNovoRoundCores() {
+            coresDesafioAtual = coresDesafios[Math.floor(Math.random() * coresDesafios.length)];
+            document.querySelector("#textoDesafioCores").setAttribute("value", "MISSAO: " + coresDesafioAtual.nome);
+            resetarMistura();
+        }
+
+        function resetarMistura() {
+            coresSelecionadas = [];
+            ["#orbe1", "#orbe2", "#orbeResultado", "#metade1", "#metade2", "#painelFormula"]
+                .forEach(id => {
+                    const el = document.querySelector(id);
+                    if (el) el.setAttribute("visible", "false");
+                });
+
+            document.querySelector("#liquidoPocao").setAttribute("color", "white");
+            document.querySelector("#textoInstrucaoCores").setAttribute("value", "Escolha 2 cores!");
+            document.querySelector("#containerBolhas").innerHTML = "";
+            document.querySelector("#caldeirao").setAttribute("rotation", "0 0 0");
+
+            ["vermelho", "azul", "amarelo"].forEach(cor => {
+                const cubo = document.querySelector(`#cubo${cor.charAt(0).toUpperCase() + cor.slice(1)}`);
+                if (cubo) {
+                    cubo.setAttribute("visible", "true");
+                    cubo.setAttribute("position", posicoesIniciais[cor]);
+                }
+            });
+        }
+
+        function atualizarVisualCores() {
+            const m1 = document.querySelector("#metade1");
+            const m2 = document.querySelector("#metade2");
+            const painelFormula = document.querySelector("#painelFormula");
+            const o1 = document.querySelector("#orbe1");
+            const o2 = document.querySelector("#orbe2");
+            const oRes = document.querySelector("#orbeResultado");
+
+            painelFormula.setAttribute("visible", "true");
+
+            if (coresSelecionadas[0]) {
+                const corHex1 = mapaCores[coresSelecionadas[0]];
+                m1.setAttribute("visible", "true");
+                m1.querySelector("a-circle").setAttribute("color", corHex1);
+                o1.setAttribute("visible", "true");
+                o1.setAttribute("color", corHex1);
+                o1.setAttribute("material", `emissive: ${corHex1}; emissiveIntensity: 0.5`);
+            }
+
+            if (coresSelecionadas[1]) {
+                const corHex2 = mapaCores[coresSelecionadas[1]];
+                m2.setAttribute("visible", "true");
+                m2.querySelector("a-circle").setAttribute("color", corHex2);
+                o2.setAttribute("visible", "true");
+                o2.setAttribute("color", corHex2);
+                o2.setAttribute("material", `emissive: ${corHex2}; emissiveIntensity: 0.5`);
+
+                const chave = coresSelecionadas.sort().join(",");
+                const corResultado = misturadorDeCores[chave] || "gray";
+                oRes.setAttribute("visible", "true");
+                oRes.setAttribute("color", corResultado);
+                oRes.setAttribute("material", `emissive: ${corResultado}; emissiveIntensity: 0.8`);
+
+                document.querySelector("#textoInstrucaoCores").setAttribute("value", "Pronto! MISTURAR!");
+            }
+        }
+
+        function dispararBolhas(cor) {
+            const container = document.querySelector("#containerBolhas");
+            container.innerHTML = "";
+            for (let i = 0; i < 20; i++) {
+                const bolha = document.createElement("a-sphere");
+                const x = (Math.random() - 0.5) * 0.8;
+                const z = (Math.random() - 0.5) * 0.8;
+                const delay = Math.random() * 500;
+                const tamanho = Math.random() * 0.08 + 0.02;
+
+                bolha.setAttribute("radius", tamanho);
+                bolha.setAttribute("color", cor);
+                bolha.setAttribute("position", `${x} 0.5 ${z}`);
+                bolha.setAttribute("material", "opacity: 0.7; transparent: true; emissive: " + cor);
+                bolha.setAttribute("animation", {
+                    property: "position", to: `${x} 2.5 ${z}`, dur: 1500,
+                    easing: "easeOutCubic", delay: delay
+                });
+                bolha.setAttribute("animation__fade", {
+                    property: "scale", to: "0 0 0", dur: 1500,
+                    easing: "easeOutCubic", delay: delay
+                });
+                container.appendChild(bolha);
+            }
+        }
+
+        AFRAME.registerComponent("cor-arrastavel", {
+            schema: { corNome: { type: "string" } },
+            init() {
+                this.el.addEventListener("click", () => {
+                    // Ignora cliques se a tela de cores não estiver ativa
+                    if (document.querySelector('#tela-cores').getAttribute('visible') === 'false') return;
+
+                    if (coresSelecionadas.length < 2 && !coresSelecionadas.includes(this.data.corNome)) {
+                        coresSelecionadas.push(this.data.corNome);
+                        this.el.setAttribute("visible", "false");
+                        tocarSom('#som-selecao');
+                        vibrar(0.2, 40);
+                        atualizarVisualCores();
+                    }
+                });
+            }
+        });
+
+        AFRAME.registerComponent("acao-verificar", {
+            init() {
+                this.el.addEventListener("click", () => {
+                    if (document.querySelector('#tela-cores').getAttribute('visible') === 'false') return;
+                    
+                    tocarSom('#som-clique');
+                    if (!coresJogoAtivo || coresSelecionadas.length < 2) return;
+
+                    const chave = coresSelecionadas.sort().join(",");
+                    const esperado = [...coresDesafioAtual.necessaria].sort().join(",");
+                    const corGeradaReal = misturadorDeCores[chave] || "gray";
+
+                    document.querySelector("#liquidoPocao").setAttribute("color", corGeradaReal);
+                    document.querySelector("#metade1").querySelector("a-circle").setAttribute("color", corGeradaReal);
+                    document.querySelector("#metade2").querySelector("a-circle").setAttribute("color", corGeradaReal);
+
+                    if (chave === esperado) {
+                        coresPontuacao += 10;
+                        document.querySelector("#textoPontosCores").setAttribute("value", "SCORE: " + coresPontuacao);
+                        document.querySelector("#textoInstrucaoCores").setAttribute("value", "MAGNIFICO!");
+                        tocarSom('#som-acerto');
+                        dispararBolhas(coresDesafioAtual.cor);
+                        vibrar(0.7, 250);
+                        setTimeout(iniciarNovoRoundCores, 2000);
+                    } else {
+                        document.querySelector("#textoInstrucaoCores").setAttribute("value", "ERROU!");
+                        tocarSom('#som-erro');
+                        const caldeirao = document.querySelector("#caldeirao");
+                        caldeirao.emit("erro-shake");
+                        setTimeout(() => { caldeirao.setAttribute("rotation", "0 0 0"); }, 350);
+                        vibrar(0.9, 100);
+                        setTimeout(resetarMistura, 1500);
+                    }
+                });
+            }
         });
     </script>
 
     <a-scene>
+        <a-assets>
+            <audio id="som-acerto" src="som_acerto.wav" preload="auto"></audio>
+            <audio id="som-erro" src="som_erro.ogg" preload="auto"></audio>
+            <audio id="som-selecao" src="som_selecao.wav" preload="auto"></audio>
+            <audio id="som-clique" src="som_clique.wav" preload="auto"></audio>
+
+            <img id="imgSorvete" src="sorvete.png">
+            <img id="imgBola" src="bola.png">
+            <img id="imgDado" src="dado.png">
+        </a-assets>
+
         <a-entity environment="preset: forest; lighting: none"></a-entity>
         <a-light type="ambient" color="#BBB" intensity="0.8"></a-light>
         <a-light type="directional" color="#FFF" intensity="0.6" position="-1 4 2"></a-light>
 
         <a-entity id="rig">
             <a-camera position="0 1.6 0">
-                <a-cursor id="cursor" raycaster="objects: .clickable" material="color: white; shader: flat"></a-cursor>
+                <a-cursor id="cursorPrincipal" raycaster="objects: .tela-ativa .clickable" material="color: white; shader: flat"></a-cursor>
             </a-camera>
-            <a-entity laser-controls="hand: left"  raycaster="objects: .clickable; far: 10"></a-entity>
-            <a-entity laser-controls="hand: right" raycaster="objects: .clickable; far: 10"></a-entity>
+            <a-entity laser-controls="hand: left" raycaster="objects: .tela-ativa .clickable; far: 10; showLine: true"></a-entity>
+            <a-entity laser-controls="hand: right" raycaster="objects: .tela-ativa .clickable; far: 10; showLine: true"></a-entity>
         </a-entity>
 
-        <a-box position="0 4.1 -4" width="7" height="1.4" depth="0.1" color="#111" opacity="0.9"></a-box>
-        <a-text value="Menu" position="0 4.3 -3.94" align="center" width="8" color="#FFD700"></a-text>
-        <a-text value="Escolha um jogo para comecar" position="0 3.9 -3.94" align="center" width="6" color="#ccc"></a-text>
+        <a-entity id="tela-menu">
+            <a-box position="0 4.1 -4" width="7" height="1.4" depth="0.1" color="#111" opacity="0.9"></a-box>
+            <a-text value="Menu" position="0 4.3 -3.94" align="center" width="8" color="#FFD700"></a-text>
+            <a-text value="Escolha um jogo para comecar" position="0 3.9 -3.94" align="center" width="6" color="#ccc"></a-text>
 
-        <a-entity position="-1.8 1.2 -4">
-            <a-box width="2.8" height="4.0" depth="0.12" color="#1a1a2e" opacity="0.95"></a-box>
+            <a-entity position="-1.8 1.2 -4">
+                <a-box width="2.8" height="4.0" depth="0.12" color="#1a1a2e" opacity="0.95"></a-box>
+                <a-sphere radius="0.2" position="0 1.5 0.1" color="#1c52bd"></a-sphere>
+                <a-sphere radius="0.2" position="0.3 1.35 0.15" color="#fad502"></a-sphere>
+                <a-sphere radius="0.2" position="-0.3 1.25 0.15" color="#fa1302"></a-sphere>
 
-            <a-sphere radius="0.2" position="0 1.5 0.1" color="#1c52bd"></a-sphere>
-            <a-sphere radius="0.2" position="0.3 1.35 0.15" color="#fad502"></a-sphere>
-            <a-sphere radius="0.2" position="-0.3 1.25 0.15" color="#fa1302"></a-sphere>
+                <a-text value="MESTRE DAS CORES" position="0 0.7 0.07" align="center" width="5" color="#FFD700"></a-text>
+                <a-text value="Misture cores primárias\npara criar novas cores!\nUse o laser para clicar." position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
 
-            <a-text value="MESTRE DAS CORES" position="0 0.7 0.07" align="center" width="5" color="#FFD700"></a-text>
-            <a-text value="Misture cores primárias\npara criar novas cores!\nUse o laser para clicar." 
-                    position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
+                <a-box class="clickable" menu-jogo="alvo: cores" position="0 -0.85 0.08" width="2.2" height="0.45" depth="0.1" color="#8e44ad">
+                    <a-text value="JOGAR" align="center" position="0 0 0.06" width="4.5" color="white"></a-text>
+                </a-box>
+            </a-entity>
 
-            <a-box class="clickable"
-                   menu-jogo="url: mestre_cores.html; label: Mestre das Cores"
-                   position="0 -0.85 0.08"
-                   width="2.2" height="0.45" depth="0.1"
-                   color="#8e44ad">
-                <a-text value="JOGAR" align="center" position="0 0 0.06" width="4.5" color="white"></a-text>
-            </a-box>
+            <a-entity position="1.8 1.2 -4">
+                <a-box width="2.8" height="4.0" depth="0.12" color="#0d2137" opacity="0.95"></a-box>
+                <a-box position="-0.3 1.35 0.15" width="0.35" height="0.35" depth="0.35" color="#e67e22" animation="property: rotation; to: 45 360 45; loop: true; dur: 3000; easing: linear"></a-box>
+                <a-sphere radius="0.2" position="0.1 1.35 0.18" color="#9b59b6"></a-sphere>
+                <a-cone radius-bottom="0.2" height="0.35" position="0.45 1.35 0.15" color="#2ecc71"></a-cone>
+
+                <a-text value="MESTRE DA GEOMETRIA" position="0 0.7 0.07" align="center" width="5" color="#00cfff"></a-text>
+                <a-text value="Associe corretamente\nas imagens as formas\ngeométricas!" position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
+
+                <a-box class="clickable" menu-jogo="alvo: geometria" position="0 -0.85 0.08" width="2.2" height="0.45" depth="0.1" color="#2980b9">
+                    <a-text value="JOGAR" align="center" position="0 0 0.06" width="4.5" color="white"></a-text>
+                </a-box>
+            </a-entity>
+
+            <a-ring color="#FFD700" radius-inner="0.4" radius-outer="0.45" position="0 0.01 0" rotation="-90 0 0" animation="property: rotation; to: -90 0 360; loop: true; dur: 8000; easing: linear"></a-ring>
         </a-entity>
 
-        <a-entity position="1.8 1.2 -4">
-            <a-box width="2.8" height="4.0" depth="0.12" color="#0d2137" opacity="0.95"></a-box>
+        <a-entity id="tela-geometria" visible="false">
+            <a-entity position="0 5.0 -3.4">
+                <a-plane width="8.0" height="1.2" color="#111" depth="0.1" opacity="0.9"></a-plane>
+                <a-text value="MESTRE DA GEOMETRIA" position="0 0.3 0.02" align="center" width="6.5" color="#FFD700"></a-text>
+                <a-text id="textoPontosGeo" value="SCORE: 0" position="2.9 0 0.02" align="center" width="4" color="#00FF00"></a-text>
 
-            <a-box position="-0.3 1.35 0.15" width="0.35" height="0.35" depth="0.35" color="#e67e22"
-                   animation="property: rotation; to: 45 360 45; loop: true; dur: 3000; easing: linear">
-            </a-box>
-            <a-sphere radius="0.2" position="0.1 1.35 0.18" color="#9b59b6"></a-sphere>
-            <a-cone radius-bottom="0.2" height="0.35" position="0.45 1.35 0.15" color="#2ecc71"></a-cone>
+                <a-box class="clickable" voltar-menu color="#c0392b" position="-2.9 0 0.02" width="1.4" height="0.4" depth="0.1">
+                    <a-text value="MENU" align="center" position="0 0 0.06" width="4" color="white"></a-text>
+                </a-box>
+            </a-entity>
 
-            <a-text value="MESTRE DA GEOMETRIA" position="0 0.7 0.07" align="center" width="5" color="#00cfff"></a-text>
-            <a-text value="Associe corretamente\nas imagens as formas\ngeométricas!" 
-                    position="0 0 0.07" align="center" width="4.5" color="#ddd" line-height="55"></a-text>
+            <a-entity position="0 3.0 -3.4">
+                <a-plane width="5.8" height="2.0" color="#000" opacity="0.65"></a-plane>
+                <a-text id="textoPerguntaGeo" value="PERGUNTA" position="0 0.7 0.02" align="center" width="6" color="#FFD700"></a-text>
+                <a-plane id="imagemPerguntaGeo" position="0 0.0 0.02" width="1.1" height="1.0" material="shader: flat; transparent: true; src: #imgSorvete"></a-plane>
+                <a-text value="Clique na forma correta!" position="0 -0.7 0.02" align="center" width="5" color="#00cfff"></a-text>
+            </a-entity>
 
-            <a-box class="clickable"
-                   menu-jogo="url: geometria_vr.html; label: Geometria VR"
-                   position="0 -0.85 0.08"
-                   width="2.2" height="0.45" depth="0.1"
-                   color="#2980b9">
-                <a-text value="JOGAR" align="center" position="0 0 0.06" width="4.5" color="white"></a-text>
-            </a-box>
+            <a-text id="textoFeedbackGeo" value="" position="0 1.7 -2.8" align="center" width="6" color="white"></a-text>
+
+            <a-entity position="-5.0 1.4 -3.0" rotation="0 25 0">
+                <a-plane width="1.6" height="1.1" color="#111" opacity="0.8"></a-plane>
+                <a-text value="CONTROLES\n\nAPONTE O LASER\nE CLIQUE!" position="0 0 0.02" align="center" width="3" color="white" line-height="55"></a-text>
+            </a-entity>
+
+            <a-entity position="0 0 -2">
+                <a-box position="0 0.85 0" width="3.4" height="0.15" depth="1.8" color="#7d4e24"></a-box>
+                <a-box position="-1.6 0.4 0.8" width="0.12" height="0.8" depth="0.12" color="#5d3a1a"></a-box>
+                <a-box position="1.6 0.4 0.8" width="0.12" height="0.8" depth="0.12" color="#5d3a1a"></a-box>
+                <a-box position="-1.6 0.4 -0.8" width="0.12" height="0.8" depth="0.12" color="#5d3a1a"></a-box>
+                <a-box position="1.6 0.4 -0.8" width="0.12" height="0.8" depth="0.12" color="#5d3a1a"></a-box>
+            </a-entity>
+
+            <a-box class="clickable" quiz-click="tipo: cubo" position="-0.9 1.2 -2" scale="0.25 0.25 0.25" color="#e67e22"></a-box>
+            <a-text value="CUBO" position="-0.9 1.45 -2" align="center" width="3" color="black"></a-text>
+
+            <a-sphere class="clickable" quiz-click="tipo: esfera" position="0 1.2 -2" radius="0.15" color="#9b59b6"></a-sphere>
+            <a-text value="ESFERA" position="0 1.45 -2" align="center" width="3" color="black"></a-text>
+
+            <a-cone class="clickable" quiz-click="tipo: cone" position="0.9 1.2 -2" radius-bottom="0.14" height="0.3" color="#2ecc71"></a-cone>
+            <a-text value="CONE" position="0.9 1.45 -2" align="center" width="3" color="black"></a-text>
         </a-entity>
 
-        <a-ring color="#FFD700" radius-inner="0.4" radius-outer="0.45"
-                position="0 0.01 0" rotation="-90 0 0"
-                animation="property: rotation; to: -90 0 360; loop: true; dur: 8000; easing: linear">
-        </a-ring>
+        <a-entity id="tela-cores" visible="false">
+            <a-box position="0 3.5 -3.1" width="6.5" height="1.2" depth="0.1" color="#111" opacity="0.9"></a-box>
+            <a-text value="MESTRE DAS CORES" position="0 3.9 -3" align="center" width="7" color="#FFD700"></a-text>
+            <a-text id="textoDesafioCores" value="" position="0 3.5 -3" align="center" width="6" color="white"></a-text>
+            <a-text id="textoInstrucaoCores" value="" position="0 3.2 -3" align="center" width="5"></a-text>
+            <a-text id="textoPontosCores" value="SCORE: 0" position="2.5 3.5 -3" align="center" width="4" color="#00FF00"></a-text>
 
+            <a-box class="clickable" voltar-menu color="#c0392b" position="-2.5 3.5 -3" width="1.2" height="0.35" depth="0.1">
+                <a-text value="MENU" align="center" position="0 0 0.06" width="3.5" color="white"></a-text>
+            </a-box>
+
+            <a-entity id="painelFormula" position="0 1.8 -3" visible="false">
+                <a-sphere id="orbe1" radius="0.15" position="-0.6 0 0" material="emissiveIntensity: 0.5"></a-sphere>
+                <a-text value="+" position="-0.3 0 0" align="center" width="4" color="white"></a-text>
+                <a-sphere id="orbe2" radius="0.15" position="0 0 0" material="emissiveIntensity: 0.5"></a-sphere>
+                <a-text value="=" position="0.3 0 0" align="center" width="4" color="white"></a-text>
+                <a-sphere id="orbeResultado" radius="0.22" position="0.7 0 0" animation="property: position; to: 0.7 0.1 0; dur: 1000; dir: alternate; loop: true; easing: easeInOutSine"></a-sphere>
+            </a-entity>
+
+            <a-entity position="0 0.5 -3">
+                <a-cylinder id="caldeirao" radius="0.6" height="0.8" color="#2c3e50" animation__shake="property: rotation; from: 0 0 -5; to: 0 0 5; startEvents: erro-shake; dur: 100; dir: alternate; loop: 3">
+                    <a-circle id="liquidoPocao" position="0 0.41 0" rotation="-90 0 0" radius="0.55" color="white"></a-circle>
+                    <a-entity id="metade1" visible="false" position="0 0.42 0" rotation="-90 0 0">
+                        <a-circle radius="0.55" theta-start="90" theta-length="180"></a-circle>
+                    </a-entity>
+                    <a-entity id="metade2" visible="false" position="0 0.43 0" rotation="-90 0 0">
+                        <a-circle radius="0.55" theta-start="270" theta-length="180"></a-circle>
+                    </a-entity>
+                    <a-entity id="containerBolhas"></a-entity>
+                </a-cylinder>
+            </a-entity>
+
+            <a-box id="cuboVermelho" class="clickable" cor-arrastavel="corNome: vermelho" color="red" position="-1.5 1.2 -3" scale="0.3 0.3 0.3"></a-box>
+            <a-box id="cuboAzul" class="clickable" cor-arrastavel="corNome: azul" color="blue" position="-1.5 0.7 -3" scale="0.3 0.3 0.3"></a-box>
+            <a-box id="cuboAmarelo" class="clickable" cor-arrastavel="corNome: amarelo" color="yellow" position="-1.5 0.2 -3" scale="0.3 0.3 0.3"></a-box>
+
+            <a-box class="clickable" acao-verificar color="#27ae60" position="1.2 0.7 -3" width="1" height="0.35" depth="0.15">
+                <a-text value="MISTURAR" align="center" position="0 0 0.08" width="3.5"></a-text>
+            </a-box>
+        </a-entity>
     </a-scene>
 </body>
 </html>
